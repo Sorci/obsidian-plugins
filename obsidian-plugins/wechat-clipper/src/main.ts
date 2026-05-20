@@ -1,6 +1,6 @@
 import { Modal, Notice, Plugin, Setting } from "obsidian";
 import { WeChatClipperSettingTab } from "./settings";
-import { DEFAULT_SETTINGS, type WeChatClipperSettings } from "./types";
+import { DEFAULT_SETTINGS, type AiStatus, type WeChatClipperSettings } from "./types";
 import { importWeChatArticle } from "./importer/importWeChatArticle";
 
 export default class WeChatClipperPlugin extends Plugin {
@@ -33,16 +33,23 @@ export default class WeChatClipperPlugin extends Plugin {
   private async runImport(url: string): Promise<void> {
     try {
       const out = await importWeChatArticle({ app: this.app, url, settings: this.settings });
+      const ai = formatAiStatus(out.aiStatus);
       const msg =
         out.imageFailed > 0
-          ? `Imported: ${out.notePath} (images: ${out.imageTotal}, failed: ${out.imageFailed})`
-          : `Imported: ${out.notePath} (images: ${out.imageTotal})`;
+          ? `Imported: ${out.notePath} (images: ${out.imageTotal}, failed: ${out.imageFailed}${ai})`
+          : `Imported: ${out.notePath} (images: ${out.imageTotal}${ai})`;
       new Notice(msg);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       new Notice(`Import failed: ${msg}`);
     }
   }
+}
+
+function formatAiStatus(aiStatus: AiStatus | undefined): string {
+  if (!aiStatus || aiStatus === "skipped") return "";
+  if (aiStatus === "missing_config") return ", AI: missing config";
+  return `, AI: ${aiStatus}`;
 }
 
 class UrlInputModal extends Modal {

@@ -23,10 +23,17 @@ __export(main_exports, {
   default: () => WeChatClipperPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian4 = require("obsidian");
+var import_obsidian5 = require("obsidian");
 
 // src/settings.ts
 var import_obsidian = require("obsidian");
+function clampInt(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+function parseIntOr(value, fallback) {
+  const n = Number.parseInt(value, 10);
+  return Number.isFinite(n) ? n : fallback;
+}
 function parseKeywords(value) {
   return value.split(/\r?\n|,/g).map((s) => s.trim()).filter((s) => s.length > 0);
 }
@@ -80,6 +87,127 @@ var WeChatClipperSettingTab = class extends import_obsidian.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
+    containerEl.createEl("h3", { text: "AI" });
+    new import_obsidian.Setting(containerEl).setName("\u542F\u7528 AI").setDesc("\u542F\u7528\u540E\u5728\u5BFC\u5165\u6D41\u7A0B\u4E2D\u4F7F\u7528 AI \u751F\u6210\u4E3B\u9898\u3001\u6807\u7B7E\u4E0E\u6458\u8981").addToggle(
+      (toggle) => toggle.setValue(this.plugin.settings.aiEnabled).onChange(async (value) => {
+        this.plugin.settings.aiEnabled = value;
+        await this.plugin.saveSettings();
+        this.display();
+      })
+    );
+    new import_obsidian.Setting(containerEl).setName("Base URL").setDesc("\u4F8B\u5982\uFF1Ahttps://api.openai.com").addText((text) => {
+      text.setValue(this.plugin.settings.aiBaseUrl).onChange(async (value) => {
+        this.plugin.settings.aiBaseUrl = value.trim();
+        await this.plugin.saveSettings();
+      });
+      if (!this.plugin.settings.aiEnabled) {
+        text.inputEl.disabled = true;
+      }
+    });
+    new import_obsidian.Setting(containerEl).setName("Model").setDesc("\u4F8B\u5982\uFF1Agpt-4o-mini").addText((text) => {
+      text.setValue(this.plugin.settings.aiModel).onChange(async (value) => {
+        this.plugin.settings.aiModel = value.trim();
+        await this.plugin.saveSettings();
+      });
+      if (!this.plugin.settings.aiEnabled) {
+        text.inputEl.disabled = true;
+      }
+    });
+    new import_obsidian.Setting(containerEl).setName("API Key").setDesc("\u4EC5\u4FDD\u5B58\u5728\u672C\u5730\u63D2\u4EF6\u8BBE\u7F6E\u4E2D").addText((text) => {
+      text.inputEl.type = "password";
+      text.setValue(this.plugin.settings.aiApiKey).onChange(async (value) => {
+        this.plugin.settings.aiApiKey = value.trim();
+        await this.plugin.saveSettings();
+      });
+      if (!this.plugin.settings.aiEnabled) {
+        text.inputEl.disabled = true;
+      }
+    });
+    new import_obsidian.Setting(containerEl).setName("\u8F93\u51FA\u8BED\u8A00").setDesc("auto=\u81EA\u52A8\uFF0Czh=\u4E2D\u6587\uFF0Cen=English").addDropdown((dropdown) => {
+      dropdown.addOption("auto", "auto").addOption("zh", "zh").addOption("en", "en").setValue(this.plugin.settings.aiLanguage).onChange(async (value) => {
+        this.plugin.settings.aiLanguage = value;
+        await this.plugin.saveSettings();
+      });
+      if (!this.plugin.settings.aiEnabled) {
+        dropdown.selectEl.disabled = true;
+      }
+    });
+    new import_obsidian.Setting(containerEl).setName("\u8BF7\u6C42\u8D85\u65F6 (ms)").setDesc("1000-120000").addText((text) => {
+      text.inputEl.type = "number";
+      text.inputEl.min = "1000";
+      text.inputEl.max = "120000";
+      text.inputEl.step = "1";
+      text.setValue(String(this.plugin.settings.aiRequestTimeoutMs));
+      text.inputEl.addEventListener("change", async () => {
+        const next2 = clampInt(
+          parseIntOr(text.inputEl.value, this.plugin.settings.aiRequestTimeoutMs),
+          1e3,
+          12e4
+        );
+        this.plugin.settings.aiRequestTimeoutMs = next2;
+        text.inputEl.value = String(next2);
+        await this.plugin.saveSettings();
+      });
+      if (!this.plugin.settings.aiEnabled) {
+        text.inputEl.disabled = true;
+      }
+    });
+    new import_obsidian.Setting(containerEl).setName("\u6700\u5927\u8F93\u5165\u5B57\u7B26\u6570").setDesc("5000-200000").addText((text) => {
+      text.inputEl.type = "number";
+      text.inputEl.min = "5000";
+      text.inputEl.max = "200000";
+      text.inputEl.step = "1";
+      text.setValue(String(this.plugin.settings.aiMaxInputChars));
+      text.inputEl.addEventListener("change", async () => {
+        const next2 = clampInt(
+          parseIntOr(text.inputEl.value, this.plugin.settings.aiMaxInputChars),
+          5e3,
+          2e5
+        );
+        this.plugin.settings.aiMaxInputChars = next2;
+        text.inputEl.value = String(next2);
+        await this.plugin.saveSettings();
+      });
+      if (!this.plugin.settings.aiEnabled) {
+        text.inputEl.disabled = true;
+      }
+    });
+    new import_obsidian.Setting(containerEl).setName("\u6458\u8981\u6700\u5927\u5B57\u7B26\u6570").setDesc("50-500").addText((text) => {
+      text.inputEl.type = "number";
+      text.inputEl.min = "50";
+      text.inputEl.max = "500";
+      text.inputEl.step = "1";
+      text.setValue(String(this.plugin.settings.aiSummaryMaxChars));
+      text.inputEl.addEventListener("change", async () => {
+        const next2 = clampInt(
+          parseIntOr(text.inputEl.value, this.plugin.settings.aiSummaryMaxChars),
+          50,
+          500
+        );
+        this.plugin.settings.aiSummaryMaxChars = next2;
+        text.inputEl.value = String(next2);
+        await this.plugin.saveSettings();
+      });
+      if (!this.plugin.settings.aiEnabled) {
+        text.inputEl.disabled = true;
+      }
+    });
+    new import_obsidian.Setting(containerEl).setName("\u6700\u5927\u6807\u7B7E\u6570\u91CF").setDesc("1-20").addText((text) => {
+      text.inputEl.type = "number";
+      text.inputEl.min = "1";
+      text.inputEl.max = "20";
+      text.inputEl.step = "1";
+      text.setValue(String(this.plugin.settings.aiMaxTags));
+      text.inputEl.addEventListener("change", async () => {
+        const next2 = clampInt(parseIntOr(text.inputEl.value, this.plugin.settings.aiMaxTags), 1, 20);
+        this.plugin.settings.aiMaxTags = next2;
+        text.inputEl.value = String(next2);
+        await this.plugin.saveSettings();
+      });
+      if (!this.plugin.settings.aiEnabled) {
+        text.inputEl.disabled = true;
+      }
+    });
   }
 };
 
@@ -99,11 +227,130 @@ var DEFAULT_SETTINGS = {
     "\u5173\u6CE8\u516C\u4F17\u53F7",
     "\u66F4\u591A\u7CBE\u5F69\u5185\u5BB9"
   ],
-  userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+  userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  aiEnabled: false,
+  aiBaseUrl: "",
+  aiApiKey: "",
+  aiModel: "gpt-4o-mini",
+  aiRequestTimeoutMs: 3e4,
+  aiMaxInputChars: 6e4,
+  aiSummaryMaxChars: 150,
+  aiMaxTags: 8,
+  aiLanguage: "auto"
 };
 
 // src/importer/importWeChatArticle.ts
-var import_obsidian3 = require("obsidian");
+var import_obsidian4 = require("obsidian");
+
+// src/ai/openaiCompatible.ts
+var import_obsidian2 = require("obsidian");
+function parseJsonObject(content) {
+  const trimmed = content.trim();
+  if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return null;
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+function normalizeAiAnalysis(raw, opts) {
+  const topic = typeof raw.topic === "string" ? raw.topic.trim() : "";
+  const tagsRaw = Array.isArray(raw.tags) ? raw.tags : [];
+  const tags = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const t of tagsRaw) {
+    if (typeof t !== "string") continue;
+    const normalized = t.trim().replace(/^#+/g, "");
+    if (!normalized) continue;
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    tags.push(normalized);
+    if (tags.length >= opts.maxTags) break;
+  }
+  const summary = typeof raw.summary === "string" ? raw.summary.trim() : "";
+  return {
+    topic: topic ? topic : void 0,
+    tags: tags.length > 0 ? tags : void 0,
+    summary: summary ? summary.slice(0, opts.maxSummaryChars) : void 0
+  };
+}
+function hasAiConfig(settings) {
+  return Boolean(
+    settings.aiEnabled && settings.aiBaseUrl.trim() && settings.aiApiKey.trim() && settings.aiModel.trim()
+  );
+}
+function buildChatCompletionsUrl(baseUrl) {
+  const trimmed = baseUrl.trim().replaceAll(/\/+$/g, "");
+  const marker = "/chat/completions";
+  const idx = trimmed.indexOf(marker);
+  if (idx !== -1) return trimmed.slice(0, idx + marker.length);
+  if (trimmed.endsWith("/v1")) return `${trimmed}${marker}`;
+  return `${trimmed}/v1${marker}`;
+}
+function languageHint(lang) {
+  if (lang === "zh") return "\u7528\u4E2D\u6587\u8F93\u51FA\u3002";
+  if (lang === "en") return "Output in English.";
+  return "";
+}
+function withTimeout(p, ms) {
+  if (!Number.isFinite(ms) || ms <= 0) return p;
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error("AI request timeout")), ms);
+    p.then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(t);
+        reject(e);
+      }
+    );
+  });
+}
+async function analyzeArticleWithOpenAICompatible(args) {
+  const { settings } = args;
+  if (!hasAiConfig(settings)) return {};
+  const url = buildChatCompletionsUrl(settings.aiBaseUrl);
+  const input = args.markdown.slice(0, settings.aiMaxInputChars);
+  const system = [
+    "You are an assistant that extracts topic/tags/summary from an article.",
+    "Return ONLY valid JSON (no markdown, no code fence).",
+    `Schema: {"topic":"string","tags":["string"],"summary":"string"}.`,
+    `Constraints: tags length <= ${settings.aiMaxTags}; summary <= ${settings.aiSummaryMaxChars} chars.`,
+    languageHint(settings.aiLanguage)
+  ].filter(Boolean).join(" ");
+  const req = (0, import_obsidian2.requestUrl)({
+    url,
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${settings.aiApiKey.trim()}`
+    },
+    body: JSON.stringify({
+      model: settings.aiModel.trim(),
+      temperature: 0.2,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: `Title: ${args.title}
+
+Content:
+${input}` }
+      ]
+    })
+  });
+  const res = await withTimeout(req, settings.aiRequestTimeoutMs);
+  const content = res?.json?.choices?.[0]?.message?.content;
+  if (typeof content !== "string") return {};
+  const parsed = parseJsonObject(content);
+  if (!parsed) return {};
+  return normalizeAiAnalysis(parsed, {
+    maxTags: settings.aiMaxTags,
+    maxSummaryChars: settings.aiSummaryMaxChars
+  });
+}
 
 // src/importer/cleanArticle.ts
 var DEFAULT_REMOVE_SELECTORS = [
@@ -162,9 +409,9 @@ function extractArticle(url, html) {
 }
 
 // src/importer/fetchHtml.ts
-var import_obsidian2 = require("obsidian");
+var import_obsidian3 = require("obsidian");
 async function fetchHtml(url, userAgent) {
-  const res = await (0, import_obsidian2.requestUrl)({
+  const res = await (0, import_obsidian3.requestUrl)({
     url,
     method: "GET",
     headers: {
@@ -1022,6 +1269,45 @@ function relativePosix(fromDir, toPath) {
   return parts.length ? parts.join("/") : ".";
 }
 
+// src/importer/aiStatus.ts
+function decideAiStatus(settings, analysis, aiError) {
+  if (!settings.aiEnabled) return "skipped";
+  if (!hasAiConfig(settings)) return "missing_config";
+  if (aiError) return "failed";
+  if (analysis.topic) return "ok";
+  if (analysis.summary) return "ok";
+  if (analysis.tags && analysis.tags.length > 0) return "ok";
+  return "failed";
+}
+
+// src/importer/noteFormatting.ts
+function composeWeChatNote(meta, body, analysis) {
+  const lines = ["---", `source: ${meta.url}`];
+  if (meta.title) lines.push(`title: "${escapeYamlString(meta.title)}"`);
+  if (meta.account) lines.push(`account: "${escapeYamlString(meta.account)}"`);
+  if (meta.author) lines.push(`author: "${escapeYamlString(meta.author)}"`);
+  if (meta.publishDate) lines.push(`publish_time: ${meta.publishDate}`);
+  if (analysis.topic) lines.push(`topic: "${escapeYamlString(analysis.topic)}"`);
+  if (analysis.tags && analysis.tags.length > 0) {
+    lines.push("tags:");
+    for (const t of analysis.tags) {
+      lines.push(`  - ${t}`);
+    }
+  }
+  lines.push("---", "", "");
+  const aiBlock = analysis.summary ? formatAiSummaryCallout(analysis.summary) : "";
+  return lines.join("\n") + aiBlock + body.trimEnd() + "\n";
+}
+function formatAiSummaryCallout(summary) {
+  const normalized = summary.trim().replaceAll(/\r\n/g, "\n");
+  const parts = normalized.split("\n").map((s) => s.trim()).filter((s) => s.length > 0);
+  const outLines = ["> [!summary] AI \u603B\u7ED3", ...parts.map((p) => `> ${p}`), ""];
+  return outLines.join("\n") + "\n";
+}
+function escapeYamlString(s) {
+  return s.replaceAll(/"/g, '\\"');
+}
+
 // src/importer/importWeChatArticle.ts
 async function importWeChatArticle(args) {
   const html = await fetchHtml(args.url, args.settings.userAgent);
@@ -1033,7 +1319,12 @@ async function importWeChatArticle(args) {
   const title = extracted.meta.title ?? "untitled";
   const noteStem = sanitizeFileStem(title);
   const mdBody = htmlToMarkdown(extracted.contentEl);
-  const localized = await localizeImages({
+  let aiError = false;
+  const aiPromise = args.settings.aiEnabled ? analyzeArticleWithOpenAICompatible({ title, markdown: mdBody, settings: args.settings }).catch(() => {
+    aiError = true;
+    return {};
+  }) : Promise.resolve({});
+  const localizePromise = localizeImages({
     vault: args.app.vault,
     markdown: mdBody,
     noteFolder: args.settings.noteFolder,
@@ -1042,32 +1333,22 @@ async function importWeChatArticle(args) {
     referer: args.url,
     userAgent: args.settings.userAgent,
     requestUrl: async (req) => {
-      const res = await (0, import_obsidian3.requestUrl)(req);
+      const res = await (0, import_obsidian4.requestUrl)(req);
       return {
         headers: res.headers,
         arrayBuffer: res.arrayBuffer
       };
     }
   });
+  const [analysis, localized] = await Promise.all([aiPromise, localizePromise]);
   const notePath = await writeNote(args.app, {
     folder: args.settings.noteFolder,
     stem: noteStem,
     publishDate: extracted.meta.publishDate,
-    content: withFrontmatter(extracted.meta, localized.markdown)
+    content: composeWeChatNote(extracted.meta, localized.markdown, analysis)
   });
-  return { notePath, imageTotal: localized.imageTotal, imageFailed: localized.imageFailed };
-}
-function withFrontmatter(meta, body) {
-  const lines = ["---", `source: ${meta.url}`];
-  if (meta.title) lines.push(`title: "${escapeYamlString(meta.title)}"`);
-  if (meta.account) lines.push(`account: "${escapeYamlString(meta.account)}"`);
-  if (meta.author) lines.push(`author: "${escapeYamlString(meta.author)}"`);
-  if (meta.publishDate) lines.push(`publish_time: ${meta.publishDate}`);
-  lines.push("---", "");
-  return lines.join("\n") + body.trimEnd() + "\n";
-}
-function escapeYamlString(s) {
-  return s.replaceAll(/"/g, '\\"');
+  const aiStatus = decideAiStatus(args.settings, analysis, aiError);
+  return { notePath, imageTotal: localized.imageTotal, imageFailed: localized.imageFailed, aiStatus };
 }
 async function writeNote(app, input) {
   const folder = input.folder.trim().replaceAll(/\/+$/g, "");
@@ -1096,7 +1377,7 @@ async function ensureFolder2(app, folderPath) {
 }
 
 // src/main.ts
-var WeChatClipperPlugin = class extends import_obsidian4.Plugin {
+var WeChatClipperPlugin = class extends import_obsidian5.Plugin {
   settings = DEFAULT_SETTINGS;
   async onload() {
     await this.loadSettings();
@@ -1121,15 +1402,21 @@ var WeChatClipperPlugin = class extends import_obsidian4.Plugin {
   async runImport(url) {
     try {
       const out = await importWeChatArticle({ app: this.app, url, settings: this.settings });
-      const msg = out.imageFailed > 0 ? `Imported: ${out.notePath} (images: ${out.imageTotal}, failed: ${out.imageFailed})` : `Imported: ${out.notePath} (images: ${out.imageTotal})`;
-      new import_obsidian4.Notice(msg);
+      const ai = formatAiStatus(out.aiStatus);
+      const msg = out.imageFailed > 0 ? `Imported: ${out.notePath} (images: ${out.imageTotal}, failed: ${out.imageFailed}${ai})` : `Imported: ${out.notePath} (images: ${out.imageTotal}${ai})`;
+      new import_obsidian5.Notice(msg);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      new import_obsidian4.Notice(`Import failed: ${msg}`);
+      new import_obsidian5.Notice(`Import failed: ${msg}`);
     }
   }
 };
-var UrlInputModal = class extends import_obsidian4.Modal {
+function formatAiStatus(aiStatus) {
+  if (!aiStatus || aiStatus === "skipped") return "";
+  if (aiStatus === "missing_config") return ", AI: missing config";
+  return `, AI: ${aiStatus}`;
+}
+var UrlInputModal = class extends import_obsidian5.Modal {
   plugin;
   resolve;
   value = "";
@@ -1147,12 +1434,12 @@ var UrlInputModal = class extends import_obsidian4.Modal {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.createEl("h3", { text: "WeChat Article URL" });
-    new import_obsidian4.Setting(contentEl).addText(
+    new import_obsidian5.Setting(contentEl).addText(
       (text) => text.setPlaceholder("https://mp.weixin.qq.com/s/...").onChange((v) => {
         this.value = v.trim();
       })
     );
-    new import_obsidian4.Setting(contentEl).addButton(
+    new import_obsidian5.Setting(contentEl).addButton(
       (btn) => btn.setButtonText("Import").setCta().onClick(() => {
         this.close();
         this.resolve?.(this.value || null);
