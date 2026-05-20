@@ -2,6 +2,7 @@ import { Modal, Notice, Plugin, Setting } from "obsidian";
 import { WeChatClipperSettingTab } from "./settings";
 import { DEFAULT_SETTINGS, type AiStatus, type WeChatClipperSettings } from "./types";
 import { importWeChatArticle } from "./importer/importWeChatArticle";
+import { bindEnterSubmit } from "./ui/bindEnterSubmit";
 
 export default class WeChatClipperPlugin extends Plugin {
   settings: WeChatClipperSettings = DEFAULT_SETTINGS;
@@ -56,6 +57,8 @@ class UrlInputModal extends Modal {
   private readonly plugin: WeChatClipperPlugin;
   private resolve?: (value: string | null) => void;
   private value = "";
+  private isResolved = false;
+  private unbindEnter?: () => void;
 
   constructor(plugin: WeChatClipperPlugin) {
     super(plugin.app);
@@ -74,21 +77,46 @@ class UrlInputModal extends Modal {
     contentEl.empty();
     contentEl.createEl("h3", { text: "WeChat Article URL" });
 
-    new Setting(contentEl).addText((text) =>
+    this.isResolved = false;
+    this.value = "";
+
+    const urlSetting = new Setting(contentEl);
+    urlSetting.infoEl.remove();
+    urlSetting.controlEl.style.width = "100%";
+    urlSetting.controlEl.style.justifyContent = "flex-start";
+    urlSetting.addText((text) => {
       text.setPlaceholder("https://mp.weixin.qq.com/s/...").onChange((v) => {
         this.value = v.trim();
-      })
-    );
+      });
+      text.inputEl.style.width = "100%";
+      text.inputEl.style.maxWidth = "100%";
+      this.unbindEnter = bindEnterSubmit(text.inputEl, () => this.submit());
+      queueMicrotask(() => text.inputEl.focus());
+    });
 
     new Setting(contentEl).addButton((btn) =>
       btn.setButtonText("Import").setCta().onClick(() => {
-        this.close();
-        this.resolve?.(this.value || null);
+        this.submit();
       })
     );
   }
 
   onClose(): void {
-    this.resolve?.(this.value || null);
+    this.unbindEnter?.();
+    this.unbindEnter = undefined;
+    this.finish(this.value || null);
+  }
+
+  private submit(): void {
+    this.finish(this.value || null);
+    this.close();
+  }
+
+  private finish(value: string | null): void {
+    if (this.isResolved) return;
+    this.isResolved = true;
+    const resolve = this.resolve;
+    this.resolve = undefined;
+    resolve?.(value);
   }
 }
