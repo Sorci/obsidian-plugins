@@ -1095,6 +1095,22 @@ async function ensureFolder2(app, folderPath) {
   }
 }
 
+// src/ui/bindEnterSubmit.ts
+function bindEnterSubmit(el, onSubmit) {
+  const onKeyDown = (ev) => {
+    if (ev.key !== "Enter") return;
+    if (ev.isComposing) return;
+    if (ev.shiftKey) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    onSubmit();
+  };
+  el.addEventListener("keydown", onKeyDown);
+  return () => {
+    el.removeEventListener("keydown", onKeyDown);
+  };
+}
+
 // src/main.ts
 var WeChatClipperPlugin = class extends import_obsidian4.Plugin {
   settings = DEFAULT_SETTINGS;
@@ -1133,6 +1149,8 @@ var UrlInputModal = class extends import_obsidian4.Modal {
   plugin;
   resolve;
   value = "";
+  isResolved = false;
+  unbindEnter;
   constructor(plugin) {
     super(plugin.app);
     this.plugin = plugin;
@@ -1147,19 +1165,41 @@ var UrlInputModal = class extends import_obsidian4.Modal {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.createEl("h3", { text: "WeChat Article URL" });
-    new import_obsidian4.Setting(contentEl).addText(
-      (text) => text.setPlaceholder("https://mp.weixin.qq.com/s/...").onChange((v) => {
+    this.isResolved = false;
+    this.value = "";
+    const urlSetting = new import_obsidian4.Setting(contentEl);
+    urlSetting.infoEl.remove();
+    urlSetting.controlEl.style.width = "100%";
+    urlSetting.controlEl.style.justifyContent = "flex-start";
+    urlSetting.addText((text) => {
+      text.setPlaceholder("https://mp.weixin.qq.com/s/...").onChange((v) => {
         this.value = v.trim();
-      })
-    );
+      });
+      text.inputEl.style.width = "100%";
+      text.inputEl.style.maxWidth = "100%";
+      this.unbindEnter = bindEnterSubmit(text.inputEl, () => this.submit());
+      queueMicrotask(() => text.inputEl.focus());
+    });
     new import_obsidian4.Setting(contentEl).addButton(
       (btn) => btn.setButtonText("Import").setCta().onClick(() => {
-        this.close();
-        this.resolve?.(this.value || null);
+        this.submit();
       })
     );
   }
   onClose() {
-    this.resolve?.(this.value || null);
+    this.unbindEnter?.();
+    this.unbindEnter = void 0;
+    this.finish(this.value || null);
+  }
+  submit() {
+    this.finish(this.value || null);
+    this.close();
+  }
+  finish(value) {
+    if (this.isResolved) return;
+    this.isResolved = true;
+    const resolve = this.resolve;
+    this.resolve = void 0;
+    resolve?.(value);
   }
 };
