@@ -1,10 +1,13 @@
 import { requestUrl, type App } from "obsidian";
-import type { ImportWeChatResult, WeChatArticleMeta, WeChatClipperSettings } from "../types";
+import type { ImportWeChatResult, WeChatClipperSettings } from "../types";
+import { analyzeArticleWithOpenAICompatible } from "../ai/openaiCompatible";
 import { cleanWeChatContent } from "./cleanArticle";
 import { extractArticle } from "./extractArticle";
 import { fetchHtml } from "./fetchHtml";
 import { htmlToMarkdown } from "./htmlToMarkdown";
 import { localizeImages } from "./localizeImages";
+import { decideAiStatus } from "./aiStatus";
+import { composeWeChatNote } from "./noteFormatting";
 import { ensureMdExt, joinPosix, sanitizeFileStem } from "./pathing";
 
 export async function importWeChatArticle(args: {
@@ -24,7 +27,15 @@ export async function importWeChatArticle(args: {
   const noteStem = sanitizeFileStem(title);
   const mdBody = htmlToMarkdown(extracted.contentEl);
 
-  const localized = await localizeImages({
+  let aiError = false;
+  const aiPromise = args.settings.aiEnabled
+    ? analyzeArticleWithOpenAICompatible({ title, markdown: mdBody, settings: args.settings }).catch(() => {
+        aiError = true;
+        return {};
+      })
+    : Promise.resolve({});
+
+  const localizePromise = localizeImages({
     vault: args.app.vault as any,
     markdown: mdBody,
     noteFolder: args.settings.noteFolder,
@@ -41,28 +52,17 @@ export async function importWeChatArticle(args: {
     }
   });
 
+  const [analysis, localized] = await Promise.all([aiPromise, localizePromise]);
+
   const notePath = await writeNote(args.app, {
     folder: args.settings.noteFolder,
     stem: noteStem,
     publishDate: extracted.meta.publishDate,
-    content: withFrontmatter(extracted.meta, localized.markdown)
+    content: composeWeChatNote(extracted.meta, localized.markdown, analysis)
   });
 
-  return { notePath, imageTotal: localized.imageTotal, imageFailed: localized.imageFailed };
-}
-
-function withFrontmatter(meta: WeChatArticleMeta, body: string): string {
-  const lines: string[] = ["---", `source: ${meta.url}`];
-  if (meta.title) lines.push(`title: "${escapeYamlString(meta.title)}"`);
-  if (meta.account) lines.push(`account: "${escapeYamlString(meta.account)}"`);
-  if (meta.author) lines.push(`author: "${escapeYamlString(meta.author)}"`);
-  if (meta.publishDate) lines.push(`publish_time: ${meta.publishDate}`);
-  lines.push("---", "");
-  return lines.join("\n") + body.trimEnd() + "\n";
-}
-
-function escapeYamlString(s: string): string {
-  return s.replaceAll(/"/g, '\\"');
+  const aiStatus = decideAiStatus(args.settings, analysis, aiError);
+  return { notePath, imageTotal: localized.imageTotal, imageFailed: localized.imageFailed, aiStatus };
 }
 
 async function writeNote(
@@ -96,4 +96,3 @@ async function ensureFolder(app: App, folderPath: string): Promise<void> {
     await app.vault.createFolder(acc);
   }
 }
-

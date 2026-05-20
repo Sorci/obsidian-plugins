@@ -6,6 +6,15 @@ export type WeChatClipperPluginSettingsHost = Plugin & {
   saveSettings: () => Promise<void>;
 };
 
+function clampInt(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function parseIntOr(value: string, fallback: number): number {
+  const n = Number.parseInt(value, 10);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 function parseKeywords(value: string): string[] {
   return value
     .split(/\r?\n|,/g)
@@ -94,5 +103,180 @@ export class WeChatClipperSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         }),
       );
+
+    containerEl.createEl("h3", { text: "AI" });
+
+    new Setting(containerEl)
+      .setName("启用 AI")
+      .setDesc("启用后在导入流程中使用 AI 生成主题、标签与摘要")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.aiEnabled).onChange(async (value) => {
+          this.plugin.settings.aiEnabled = value;
+          await this.plugin.saveSettings();
+          this.display();
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Base URL")
+      .setDesc("例如：https://api.openai.com")
+      .addText((text) => {
+        text.setValue(this.plugin.settings.aiBaseUrl).onChange(async (value) => {
+          this.plugin.settings.aiBaseUrl = value.trim();
+          await this.plugin.saveSettings();
+        });
+
+        if (!this.plugin.settings.aiEnabled) {
+          text.inputEl.disabled = true;
+        }
+      });
+
+    new Setting(containerEl)
+      .setName("Model")
+      .setDesc("例如：gpt-4o-mini")
+      .addText((text) => {
+        text.setValue(this.plugin.settings.aiModel).onChange(async (value) => {
+          this.plugin.settings.aiModel = value.trim();
+          await this.plugin.saveSettings();
+        });
+
+        if (!this.plugin.settings.aiEnabled) {
+          text.inputEl.disabled = true;
+        }
+      });
+
+    new Setting(containerEl)
+      .setName("API Key")
+      .setDesc("仅保存在本地插件设置中")
+      .addText((text) => {
+        text.inputEl.type = "password";
+        text.setValue(this.plugin.settings.aiApiKey).onChange(async (value) => {
+          this.plugin.settings.aiApiKey = value.trim();
+          await this.plugin.saveSettings();
+        });
+
+        if (!this.plugin.settings.aiEnabled) {
+          text.inputEl.disabled = true;
+        }
+      });
+
+    new Setting(containerEl)
+      .setName("输出语言")
+      .setDesc("auto=自动，zh=中文，en=English")
+      .addDropdown((dropdown) => {
+        dropdown
+          .addOption("auto", "auto")
+          .addOption("zh", "zh")
+          .addOption("en", "en")
+          .setValue(this.plugin.settings.aiLanguage)
+          .onChange(async (value) => {
+            this.plugin.settings.aiLanguage = value as any;
+            await this.plugin.saveSettings();
+          });
+
+        if (!this.plugin.settings.aiEnabled) {
+          dropdown.selectEl.disabled = true;
+        }
+      });
+
+    new Setting(containerEl)
+      .setName("请求超时 (ms)")
+      .setDesc("1000-120000")
+      .addText((text) => {
+        text.inputEl.type = "number";
+        text.inputEl.min = "1000";
+        text.inputEl.max = "120000";
+        text.inputEl.step = "1";
+        text.setValue(String(this.plugin.settings.aiRequestTimeoutMs));
+
+        text.inputEl.addEventListener("change", async () => {
+          const next = clampInt(
+            parseIntOr(text.inputEl.value, this.plugin.settings.aiRequestTimeoutMs),
+            1000,
+            120000,
+          );
+          this.plugin.settings.aiRequestTimeoutMs = next;
+          text.inputEl.value = String(next);
+          await this.plugin.saveSettings();
+        });
+
+        if (!this.plugin.settings.aiEnabled) {
+          text.inputEl.disabled = true;
+        }
+      });
+
+    new Setting(containerEl)
+      .setName("最大输入字符数")
+      .setDesc("5000-200000")
+      .addText((text) => {
+        text.inputEl.type = "number";
+        text.inputEl.min = "5000";
+        text.inputEl.max = "200000";
+        text.inputEl.step = "1";
+        text.setValue(String(this.plugin.settings.aiMaxInputChars));
+
+        text.inputEl.addEventListener("change", async () => {
+          const next = clampInt(
+            parseIntOr(text.inputEl.value, this.plugin.settings.aiMaxInputChars),
+            5000,
+            200000,
+          );
+          this.plugin.settings.aiMaxInputChars = next;
+          text.inputEl.value = String(next);
+          await this.plugin.saveSettings();
+        });
+
+        if (!this.plugin.settings.aiEnabled) {
+          text.inputEl.disabled = true;
+        }
+      });
+
+    new Setting(containerEl)
+      .setName("摘要最大字符数")
+      .setDesc("50-500")
+      .addText((text) => {
+        text.inputEl.type = "number";
+        text.inputEl.min = "50";
+        text.inputEl.max = "500";
+        text.inputEl.step = "1";
+        text.setValue(String(this.plugin.settings.aiSummaryMaxChars));
+
+        text.inputEl.addEventListener("change", async () => {
+          const next = clampInt(
+            parseIntOr(text.inputEl.value, this.plugin.settings.aiSummaryMaxChars),
+            50,
+            500,
+          );
+          this.plugin.settings.aiSummaryMaxChars = next;
+          text.inputEl.value = String(next);
+          await this.plugin.saveSettings();
+        });
+
+        if (!this.plugin.settings.aiEnabled) {
+          text.inputEl.disabled = true;
+        }
+      });
+
+    new Setting(containerEl)
+      .setName("最大标签数量")
+      .setDesc("1-20")
+      .addText((text) => {
+        text.inputEl.type = "number";
+        text.inputEl.min = "1";
+        text.inputEl.max = "20";
+        text.inputEl.step = "1";
+        text.setValue(String(this.plugin.settings.aiMaxTags));
+
+        text.inputEl.addEventListener("change", async () => {
+          const next = clampInt(parseIntOr(text.inputEl.value, this.plugin.settings.aiMaxTags), 1, 20);
+          this.plugin.settings.aiMaxTags = next;
+          text.inputEl.value = String(next);
+          await this.plugin.saveSettings();
+        });
+
+        if (!this.plugin.settings.aiEnabled) {
+          text.inputEl.disabled = true;
+        }
+      });
   }
 }
