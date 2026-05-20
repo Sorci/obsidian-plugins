@@ -1,6 +1,7 @@
 {
   "name": "obsidian-wechat-clipper",
-  "version": "0.0.1",
+  "version": "0.1.2",
+  "author": "Sorci",
   "private": true,
   "type": "module",
   "scripts": {

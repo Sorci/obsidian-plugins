@@ -1,0 +1,86 @@
+name: Publish WeChat Clipper
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (x.y.z)"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-wechat-clipper
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Verify versions
+        working-directory: obsidian-plugins/wechat-clipper
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          INPUT="${{ inputs.version }}"
+          MV="$(node -p "require('./manifest.json').version")"
+          PV="$(node -p "require('./package.json').version")"
+
+          if [[ "$INPUT" != "$MV" ]]; then
+            echo "Input version ($INPUT) != manifest.json version ($MV)"
+            exit 1
+          fi
+
+          if [[ "$INPUT" != "$PV" ]]; then
+            echo "Input version ($INPUT) != package.json version ($PV)"
+            exit 1
+          fi
+
+          echo "version ok: $INPUT"
+
+      - name: Clone publish repository
+        env:
+          TOKEN: ${{ secrets.WECHAT_CLIPPER_PUBLISH_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone "https://x-access-token:${TOKEN}@github.com/Sorci/wechat-clipper.git" publish-repo
+
+      - name: Sync subtree to publish repo root
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          find publish-repo -mindepth 1 -maxdepth 1 ! -name ".git" -exec rm -rf {} +
+          cp -R obsidian-plugins/wechat-clipper/. publish-repo/
+
+      - name: Commit and push main (force-with-lease)
+        working-directory: publish-repo
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+          git commit -m "chore: sync from monorepo ${{ inputs.version }}" || echo "No changes to commit"
+          git push origin HEAD:main --force-with-lease
+
+      - name: Create and push tag (force)
+        working-directory: publish-repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          git tag -f "${{ inputs.version }}"
+          git push origin "${{ inputs.version }}" --force

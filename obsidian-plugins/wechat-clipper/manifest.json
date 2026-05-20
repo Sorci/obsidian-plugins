@@ -1,10 +1,10 @@
 {
   "id": "wechat-clipper",
   "name": "WeChat Clipper",
-  "version": "0.0.1",
+  "version": "0.1.2",
   "minAppVersion": "1.5.0",
   "description": "Import WeChat Official Account articles into Obsidian as Markdown with local images.",
-  "author": "Your Name",
+  "author": "Sorci",
   "authorUrl": "",
   "isDesktopOnly": false
 }
